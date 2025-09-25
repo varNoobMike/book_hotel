@@ -1,30 +1,34 @@
-# Stage 1: Composer dependencies
-FROM composer:2.7 AS vendor
+# Stage 1: Build dependencies with Composer
+FROM composer:2 AS build
 
 WORKDIR /app
+
+# Copy composer files first
 COPY composer.json composer.lock ./
+
+# Install dependencies without dev packages
 RUN composer install --no-dev --optimize-autoloader --no-interaction --no-progress
 
-# Stage 2: Final PHP-Apache image
-FROM php:8.2-apache
-
-WORKDIR /var/www/html
-
-# Install PHP extensions and tools
-RUN apt-get update && apt-get install -y \
-    unzip git libonig-dev libzip-dev zip curl \
-    && docker-php-ext-install pdo_mysql mbstring zip \
-    && a2enmod rewrite
-
-# Copy project files
+# Copy the rest of the project
 COPY . .
 
-# Copy vendor from stage 1
-COPY --from=vendor /app/vendor ./vendor
+# Stage 2: Production image with Apache + PHP
+FROM php:8.2-apache
 
-# Permissions
-RUN chown -R www-data:www-data storage bootstrap/cache
+# Install required PHP extensions for Laravel
+RUN docker-php-ext-install pdo pdo_mysql mbstring bcmath
 
+# Set working directory
+WORKDIR /var/www/html
+
+# Copy files from build stage
+COPY --from=build /app /var/www/html
+
+# Fix permissions for Laravel
+RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
+
+# Expose port
 EXPOSE 80
 
+# Run Apache
 CMD ["apache2-foreground"]
