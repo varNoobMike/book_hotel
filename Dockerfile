@@ -1,36 +1,30 @@
-# Use official PHP 8.1 FPM image
-FROM php:8.1-fpm
+# Stage 1: Composer dependencies
+FROM composer:2.7 AS vendor
 
-# Set working directory
+WORKDIR /app
+COPY composer.json composer.lock ./
+RUN composer install --no-dev --optimize-autoloader --no-interaction --no-progress
+
+# Stage 2: Final PHP-Apache image
+FROM php:8.2-apache
+
 WORKDIR /var/www/html
 
-# Install system dependencies and PHP extensions
+# Install PHP extensions and tools
 RUN apt-get update && apt-get install -y \
-    git \
-    unzip \
-    libzip-dev \
-    zip \
-    libonig-dev \
-    libpng-dev \
-    libjpeg-dev \
-    libfreetype6-dev \
-    && docker-php-ext-configure zip \
-    && docker-php-ext-install pdo pdo_mysql zip mbstring exif pcntl gd
+    unzip git libonig-dev libzip-dev zip curl \
+    && docker-php-ext-install pdo_mysql mbstring zip \
+    && a2enmod rewrite
 
-# Install Composer globally
-COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
-
-# Copy application files except what's in .dockerignore
+# Copy project files
 COPY . .
 
-# Install PHP dependencies (production)
-RUN composer install --no-dev --optimize-autoloader
+# Copy vendor from stage 1
+COPY --from=vendor /app/vendor ./vendor
 
-# Set permissions for Laravel folders
-RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
+# Permissions
+RUN chown -R www-data:www-data storage bootstrap/cache
 
-# Expose PHP-FPM port
-EXPOSE 9000
+EXPOSE 80
 
-# Run PHP-FPM server
-CMD ["php-fpm"]
+CMD ["apache2-foreground"]
