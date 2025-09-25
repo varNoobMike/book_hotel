@@ -3,14 +3,11 @@ FROM composer:2 AS build
 
 WORKDIR /app
 
-# Copy composer files first
-COPY composer.json composer.lock ./
+# Copy entire project (so artisan is present during composer install)
+COPY . .
 
 # Install dependencies without dev packages
 RUN composer install --no-dev --optimize-autoloader --no-interaction --no-progress
-
-# Copy the rest of the project
-COPY . .
 
 # Stage 2: Production image with Apache + PHP
 FROM php:8.2-apache
