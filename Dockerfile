@@ -15,8 +15,18 @@ COPY . .
 # Stage 2: Production image with Apache + PHP
 FROM php:8.2-apache
 
-# Install required PHP extensions for Laravel
-RUN docker-php-ext-install pdo pdo_mysql mbstring bcmath
+# Install required system packages and PHP extensions for Laravel
+RUN apt-get update && apt-get install -y \
+    git \
+    unzip \
+    libzip-dev \
+    libpng-dev \
+    libicu-dev \
+    libonig-dev \
+    && docker-php-ext-install pdo pdo_mysql mbstring bcmath zip gd intl
+
+# Enable Apache mod_rewrite for Laravel routing
+RUN a2enmod rewrite
 
 # Set working directory
 WORKDIR /var/www/html
