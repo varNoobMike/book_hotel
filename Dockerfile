@@ -20,3 +20,40 @@ RUN sed -i 's|/var/www/html|/var/www/html/public|g' /etc/apache2/sites-available
 
 # Expose port 80
 EXPOSE 80
+# Stage 1: Build dependencies with Composer
+FROM composer:2 AS build
+
+WORKDIR /app
+
+# Copy composer files first
+COPY composer.json composer.lock ./
+
+# Install dependencies without dev packages
+RUN composer install --no-dev --optimize-autoloader --no-interaction --no-progress
+
+# Copy the rest of the application
+COPY . .
+
+# Stage 2: Production image with Apache + PHP
+FROM php:8.2-apache
+
+# Enable Apache rewrite module
+RUN a2enmod rewrite
+
+# Install required PHP extensions for Laravel
+RUN docker-php-ext-install pdo pdo_mysql mbstring bcmath
+
+# Set working directory
+WORKDIR /var/www/html
+
+# Copy application from build stage
+COPY --from=build /app /var/www/html
+
+# Set correct permissions for Laravel
+RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
+
+# Expose port
+EXPOSE 80
+
+# Run Apache
+CMD ["apache2-foreground"]
