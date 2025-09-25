@@ -1,41 +1,22 @@
-# Stage 1: Build dependencies with Composer
-FROM composer:2 AS build
+# Stage 2: Final PHP-Apache image
+FROM php:8.2-apache AS stage-1
 
-WORKDIR /app
+RUN docker-php-ext-install pdo_mysql mbstring bcmath zip gd intl
 
-# Copy entire project (so artisan is present during composer install)
-COPY . .
-
-# Install dependencies without dev packages
-RUN composer install --no-dev --optimize-autoloader --no-interaction --no-progress
-
-# Stage 2: Production image with Apache + PHP
-FROM php:8.2-apache
-
-# Install required system packages and PHP extensions for Laravel
-RUN apt-get update && apt-get install -y \
-    git \
-    unzip \
-    libzip-dev \
-    libpng-dev \
-    libicu-dev \
-    libonig-dev \
-    && docker-php-ext-install pdo pdo_mysql mbstring bcmath zip gd intl
-
-# Enable Apache mod_rewrite for Laravel routing
+# Enable Apache rewrite
 RUN a2enmod rewrite
 
-# Set working directory
+# Set working directory to /var/www/html
 WORKDIR /var/www/html
 
-# Copy files from build stage
+# Copy application from build stage
 COPY --from=build /app /var/www/html
 
-# Fix permissions for Laravel
+# Set correct permissions for Laravel
 RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
 
-# Expose port
-EXPOSE 80
+# 🔑 Tell Apache to serve from /public
+RUN sed -i 's|/var/www/html|/var/www/html/public|g' /etc/apache2/sites-available/000-default.conf
 
-# Run Apache
-CMD ["apache2-foreground"]
+# Expose port 80
+EXPOSE 80
